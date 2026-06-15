@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime, timezone
 import asyncpg
 
 
@@ -58,6 +59,7 @@ async def insert_event(
     prompt_idx: int | None,
     extra: dict | None,
 ) -> None:
+    ts_dt = datetime.fromisoformat(ts).astimezone(timezone.utc)
     async with _pool.acquire() as conn:
         await conn.execute(
             """
@@ -65,7 +67,7 @@ async def insert_event(
                 (ts, level, module, function, message, event_type, account, proxy, prompt_idx, extra)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             """,
-            ts, level, module, function, message,
+            ts_dt, level, module, function, message,
             event_type, account, proxy, prompt_idx,
             json.dumps(extra) if extra else None,
         )
