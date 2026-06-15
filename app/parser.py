@@ -85,7 +85,12 @@ def parse_message(module: str | None, function: str | None, message: str) -> Par
     if m:
         return ParsedEvent(event_type="proxy_patched", account=m.group(1), proxy=m.group(2))
 
-    # Success: "[6] Done: output\..."
+    # Success parallel_pipeline: "[account_17/img] Saved: ..."
+    m = re.search(r'\[(account_\S+)/\w+\] Saved:', message)
+    if m:
+        return ParsedEvent(event_type="success", account=m.group(1))
+
+    # Success pipeline: "[6] Done: output\..."
     m = re.search(r'\[(\d+)\] Done:', message)
     if m:
         return ParsedEvent(event_type="success", prompt_idx=int(m.group(1)))
