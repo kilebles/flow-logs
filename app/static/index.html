@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>flow-stat</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+    .header { background: #1a1d27; border-bottom: 1px solid #2d3348; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    .header h1 { font-size: 18px; font-weight: 600; }
+    .header .badge { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e44; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+    .controls { padding: 12px 24px; display: flex; gap: 8px; align-items: center; background: #1a1d27; border-bottom: 1px solid #2d3348; }
+    .controls label { font-size: 13px; color: #94a3b8; }
+    .controls select { background: #252836; border: 1px solid #3d4461; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 13px; }
+    .controls button { background: #3b5bdb; color: white; border: none; padding: 5px 14px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+    .controls button:hover { background: #4c6ef5; }
+    .last-updated { margin-left: auto; font-size: 12px; color: #64748b; }
+    .container { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+    .section-title { font-size: 14px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+    .chart-card { background: #1a1d27; border: 1px solid #2d3348; border-radius: 8px; padding: 16px; }
+    .chart-card canvas { max-height: 220px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #252836; color: #64748b; text-align: left; padding: 8px 12px; font-weight: 500; border-bottom: 1px solid #2d3348; }
+    td { padding: 8px 12px; border-bottom: 1px solid #1e2235; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1e2235; }
+    .table-card { background: #1a1d27; border: 1px solid #2d3348; border-radius: 8px; overflow: hidden; }
+    .status-ok   { color: #22c55e; }
+    .status-warn { color: #f59e0b; }
+    .status-err  { color: #ef4444; }
+    .num-bad  { color: #ef4444; font-weight: 600; }
+    .num-warn { color: #f59e0b; font-weight: 600; }
+    .num-ok   { color: #22c55e; }
+    .tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+    .tag-403   { background: #ef444422; color: #ef4444; }
+    .tag-429   { background: #f59e0b22; color: #f59e0b; }
+    .tag-quota { background: #a855f722; color: #a855f7; }
+    .tag-cool  { background: #3b82f622; color: #3b82f6; }
+    .tag-401   { background: #ef444444; color: #fca5a5; }
+    .tag-ip    { background: #f9731622; color: #fb923c; }
+    .tag-dead  { background: #6b728022; color: #94a3b8; }
+    .tag-ok    { background: #22c55e22; color: #22c55e; }
+    .errors-table td:first-child { font-family: monospace; font-size: 11px; color: #64748b; }
+    .msg-cell { max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #94a3b8; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>flow-stat</h1>
+    <span class="badge" id="status-badge">loading...</span>
+  </div>
+  <div class="controls">
+    <label>Window:</label>
+    <select id="hours-select">
+      <option value="1">1h</option>
+      <option value="2" selected>2h</option>
+      <option value="6">6h</option>
+      <option value="12">12h</option>
+      <option value="24">24h</option>
+    </select>
+    <button onclick="loadAll()">Refresh</button>
+    <span class="last-updated" id="last-updated"></span>
+  </div>
+
+  <div class="container">
+    <div>
+      <div class="section-title">Timeline</div>
+      <div class="chart-card">
+        <canvas id="timeline-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="section-title">Accounts</div>
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Status</th>
+                <th>403s</th>
+                <th>429s</th>
+                <th>Rotations</th>
+                <th>Success</th>
+                <th>Last event</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-tbody">
+              <tr><td colspan="7" style="color:#64748b;text-align:center">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Proxies</div>
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Proxy</th>
+                <th>403s</th>
+                <th>Dead</th>
+                <th>Last seen</th>
+              </tr>
+            </thead>
+            <tbody id="proxies-tbody">
+              <tr><td colspan="4" style="color:#64748b;text-align:center">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Recent errors</div>
+      <div class="table-card">
+        <table class="errors-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Type</th>
+              <th>Account</th>
+              <th>Proxy</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="errors-tbody">
+            <tr><td colspan="5" style="color:#64748b;text-align:center">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+let timelineChart = null;
+
+function hours() { return document.getElementById('hours-select').value; }
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('en-GB', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function statusDot(row) {
+  if (row.on_cooldown || row.quotas > 0) return '<span class="status-err">● Cooldown</span>';
+  if (row.errors_403 >= 4) return '<span class="status-warn">● Errors</span>';
+  return '<span class="status-ok">● OK</span>';
+}
+
+function numCell(n, warnAt, errAt) {
+  if (n === 0) return `<span class="num-ok">0</span>`;
+  if (n >= errAt) return `<span class="num-bad">${n}</span>`;
+  if (n >= warnAt) return `<span class="num-warn">${n}</span>`;
+  return n;
+}
+
+function eventTag(type) {
+  const map = {
+    '403': 'tag-403', '403_limit': 'tag-403',
+    '429': 'tag-429',
+    'quota': 'tag-quota', 'cooldown': 'tag-cool', 'all_cooldown': 'tag-cool',
+    '401': 'tag-401', 'ip_prohibited': 'tag-ip',
+    'proxy_dead': 'tag-dead',
+    'success': 'tag-ok', 'filtered': 'tag-dead',
+  };
+  const cls = map[type] || 'tag-dead';
+  return `<span class="tag ${cls}">${type || '?'}</span>`;
+}
+
+async function loadAccounts() {
+  const res = await fetch(`/api/accounts?hours=${hours()}`);
+  const data = await res.json();
+  const tbody = document.getElementById('accounts-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:#64748b;text-align:center">No data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td><b>${r.account}</b></td>
+      <td>${statusDot(r)}</td>
+      <td>${numCell(r.errors_403, 2, 5)}</td>
+      <td>${numCell(r.errors_429, 2, 5)}</td>
+      <td>${r.rotations || 0}</td>
+      <td>${numCell(r.successes, 0, 0)}</td>
+      <td style="color:#64748b;font-size:12px">${fmtDateTime(r.last_event)}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadProxies() {
+  const res = await fetch(`/api/proxies?hours=${hours()}`);
+  const data = await res.json();
+  const tbody = document.getElementById('proxies-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:#64748b;text-align:center">No data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td style="font-family:monospace;font-size:12px">${r.proxy}</td>
+      <td>${numCell(r.errors_403, 2, 5)}</td>
+      <td>${r.dead_count > 0 ? `<span class="num-bad">${r.dead_count}</span>` : 0}</td>
+      <td style="color:#64748b;font-size:12px">${fmtDateTime(r.last_seen)}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadErrors() {
+  const res = await fetch('/api/errors?limit=50');
+  const data = await res.json();
+  const tbody = document.getElementById('errors-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:#64748b;text-align:center">No errors</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td>${fmtDateTime(r.ts)}</td>
+      <td>${eventTag(r.event_type)}</td>
+      <td>${r.account || '<span style="color:#4a5568">—</span>'}</td>
+      <td style="font-family:monospace;font-size:11px">${r.proxy || '<span style="color:#4a5568">—</span>'}</td>
+      <td class="msg-cell" title="${r.message.replace(/"/g, '&quot;')}">${r.message}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadTimeline() {
+  const res = await fetch(`/api/timeline?hours=${hours()}`);
+  const data = await res.json();
+
+  const labels = data.map(r => fmtTime(r.bucket));
+  const d403 = data.map(r => r.errors_403);
+  const dSuccess = data.map(r => r.successes);
+  const dRotations = data.map(r => r.rotations);
+  const dCooldowns = data.map(r => r.cooldowns);
+
+  if (timelineChart) { timelineChart.destroy(); }
+
+  const ctx = document.getElementById('timeline-chart').getContext('2d');
+  timelineChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Success', data: dSuccess, borderColor: '#22c55e', backgroundColor: '#22c55e18', tension: 0.3, fill: true, pointRadius: 2 },
+        { label: '403 errors', data: d403, borderColor: '#ef4444', backgroundColor: '#ef444418', tension: 0.3, fill: true, pointRadius: 2 },
+        { label: 'Rotations', data: dRotations, borderColor: '#3b82f6', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 },
+        { label: 'Cooldowns', data: dCooldowns, borderColor: '#f59e0b', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12, font: { size: 12 } } } },
+      scales: {
+        x: { ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 11 } }, grid: { color: '#1e2235' } },
+        y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: '#1e2235' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+async function loadAll() {
+  await Promise.all([loadAccounts(), loadProxies(), loadErrors(), loadTimeline()]);
+  document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  document.getElementById('status-badge').textContent = 'live';
+}
+
+document.getElementById('hours-select').addEventListener('change', loadAll);
+
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>
