@@ -32,7 +32,7 @@ class LogEvent(BaseModel):
 
 @app.post("/ingest", status_code=204)
 async def ingest(event: LogEvent) -> None:
-    parsed = parse_message(event.message)
+    parsed = parse_message(event.module, event.function, event.message)
     await insert_event(
         ts=event.ts,
         level=event.level,
