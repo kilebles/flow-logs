@@ -28,22 +28,40 @@ class LogEvent(BaseModel):
     module: str | None = None
     function: str | None = None
     message: str
+    # structured fields sent explicitly by flow-api logger sink
+    event_type: str | None = None
+    account: str | None = None
+    proxy: str | None = None
 
 
 @app.post("/ingest", status_code=204)
 async def ingest(event: LogEvent) -> None:
-    parsed = parse_message(event.module, event.function, event.message)
+    # If flow-api already classified the event, use that; otherwise fall back to regex parsing
+    if event.event_type:
+        event_type = event.event_type
+        account = event.account
+        proxy = event.proxy
+        prompt_idx = None
+        extra = None
+    else:
+        parsed = parse_message(event.module, event.function, event.message)
+        event_type = parsed.event_type if parsed else None
+        account = parsed.account if parsed else None
+        proxy = parsed.proxy if parsed else None
+        prompt_idx = parsed.prompt_idx if parsed else None
+        extra = parsed.extra if parsed else None
+
     await insert_event(
         ts=event.ts,
         level=event.level,
         module=event.module,
         function=event.function,
         message=event.message,
-        event_type=parsed.event_type if parsed else None,
-        account=parsed.account if parsed else None,
-        proxy=parsed.proxy if parsed else None,
-        prompt_idx=parsed.prompt_idx if parsed else None,
-        extra=parsed.extra if parsed else None,
+        event_type=event_type,
+        account=account,
+        proxy=proxy,
+        prompt_idx=prompt_idx,
+        extra=extra,
     )
 
 
