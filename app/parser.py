@@ -85,13 +85,18 @@ def parse_message(module: str | None, function: str | None, message: str) -> Par
     if m:
         return ParsedEvent(event_type="proxy_patched", account=m.group(1), proxy=m.group(2))
 
-    # Success parallel_pipeline: "[account_17/img] Saved: ..."
+    # Success parallel_pipeline с суффиксом: "[account_17/img] Saved:" / "[account_17/i2v] Saved:"
     m = re.search(r'\[(account_\S+)/\w+\] Saved:', message)
     if m:
         return ParsedEvent(event_type="success", account=m.group(1))
 
-    # Success pipeline: "[6] Done: output\..."
-    m = re.search(r'\[(\d+)\] Done:', message)
+    # Success parallel_pipeline без суффикса: "[account_17] Saved:"
+    m = re.search(r'\[(account_\S+)\] Saved:', message)
+    if m:
+        return ParsedEvent(event_type="success", account=m.group(1))
+
+    # Success pipeline/image_pipeline: "[6] Done:" / "[6] Saved:" / "[6] Downloaded:"
+    m = re.search(r'\[(\d+)\] (?:Done|Saved|Downloaded):', message)
     if m:
         return ParsedEvent(event_type="success", prompt_idx=int(m.group(1)))
 
