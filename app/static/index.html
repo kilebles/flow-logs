@@ -90,12 +90,13 @@
               <th>IP banned</th>
               <th>Cooldowns</th>
               <th>Dolphin err</th>
+              <th>Tok timeout</th>
               <th>Success</th>
               <th>Last event</th>
             </tr>
           </thead>
           <tbody id="accounts-tbody">
-            <tr><td colspan="10" style="color:#64748b;text-align:center;padding:20px">Loading...</td></tr>
+            <tr><td colspan="11" style="color:#64748b;text-align:center;padding:20px">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -185,7 +186,7 @@ function eventTag(type) {
     '401': 'tag-401', 'ip_prohibited': 'tag-ip',
     'proxy_dead': 'tag-dead',
     'dolphin_500': 'tag-sys', 'unresponsive': 'tag-sys',
-    'producer_crashed': 'tag-sys', 'rotation_failed': 'tag-sys',
+    'producer_crashed': 'tag-sys', 'token_timeout': 'tag-sys', 'rotation_failed': 'tag-sys',
     'success': 'tag-ok', 'filtered': 'tag-dead',
   };
   const cls = map[type] || 'tag-dead';
@@ -197,7 +198,7 @@ async function loadAccounts() {
   const data = await res.json();
   const tbody = document.getElementById('accounts-tbody');
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="color:#64748b;text-align:center">No data</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="color:#64748b;text-align:center">No data</td></tr>';
     return;
   }
   tbody.innerHTML = data.map(r => `
@@ -210,6 +211,7 @@ async function loadAccounts() {
       <td>${numErr(r.ip_prohibited)}</td>
       <td>${numWarn(r.cooldowns)}</td>
       <td>${numErr(r.dolphin_errors)}</td>
+      <td>${numErr(r.token_timeouts)}</td>
       <td>${r.successes > 0 ? `<span class="num-good">${r.successes}</span>` : '<span class="num-ok">0</span>'}</td>
       <td class="mono">${fmtDateTime(r.last_event)}</td>
     </tr>

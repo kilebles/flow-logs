@@ -87,6 +87,7 @@ async def query_accounts(hours: int = 6) -> list[dict]:
                 COUNT(*) FILTER (WHERE event_type = 'ip_prohibited') AS ip_prohibited,
                 COUNT(*) FILTER (WHERE event_type IN ('dolphin_500', 'unresponsive')) AS dolphin_errors,
                 COUNT(*) FILTER (WHERE event_type = 'producer_crashed') AS producer_crashes,
+                COUNT(*) FILTER (WHERE event_type = 'token_timeout') AS token_timeouts,
                 MAX(ts) AS last_event,
                 -- текущий прокси: последний proxy_patched для этого аккаунта
                 (SELECT proxy FROM events e2
@@ -133,7 +134,7 @@ async def query_timeline(hours: int = 2) -> list[dict]:
                 COUNT(*) FILTER (WHERE event_type IN ('rotation', 'rotation_complete')) AS rotations,
                 COUNT(*) FILTER (WHERE event_type IN ('cooldown', 'quota')) AS cooldowns,
                 COUNT(*) FILTER (WHERE event_type = 'ip_prohibited') AS ip_prohibited,
-                COUNT(*) FILTER (WHERE event_type IN ('dolphin_500', 'unresponsive', 'producer_crashed')) AS system_errors
+                COUNT(*) FILTER (WHERE event_type IN ('dolphin_500', 'unresponsive', 'producer_crashed', 'token_timeout')) AS system_errors
             FROM events
             WHERE ts > now() - ($1 || ' hours')::INTERVAL
             GROUP BY bucket
@@ -150,7 +151,7 @@ async def query_recent_errors(limit: int = 50) -> list[dict]:
             WHERE event_type IN (
                 '403', '429', 'quota', 'cooldown', '401',
                 'ip_prohibited', 'proxy_dead',
-                'dolphin_500', 'unresponsive', 'producer_crashed',
+                'dolphin_500', 'unresponsive', 'producer_crashed', 'token_timeout',
                 'rotation_failed'
             )
             ORDER BY ts DESC
